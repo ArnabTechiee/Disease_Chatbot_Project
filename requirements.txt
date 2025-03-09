@@ -1,0 +1,13 @@
+# Core ML & NLP Libraries
+xgboost
+scikit-learn
+joblib
+pandas
+numpy
+
+# NLP & Transformer-Based Model
+sentence-transformers
+faiss-cpu
+
+# Miscellaneous Utilities
+tqdm
