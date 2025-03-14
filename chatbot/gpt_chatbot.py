@@ -6,13 +6,13 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import re
 
-#  Load dataset paths
+# Load dataset paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.join(current_dir, "..", "data")
 model_path = os.path.join(current_dir, "..", "models")
 faiss_index_path = os.path.join(model_path, "faiss_index.idx")
 
-#  Load dataset
+# Load dataset
 file_path = os.path.join(data_path, "medquad.csv")
 if not os.path.exists(file_path):
     raise FileNotFoundError(f"⚠ ERROR: File '{file_path}' not found! Place it in 'data/'.")
@@ -24,10 +24,10 @@ if df.empty:
 questions = df["question"].tolist()
 answers = df["answer"].tolist()
 
-#  Load Sentence Transformer Model
+# Load Sentence Transformer Model
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-#  Faster FAISS loading (Precompute embeddings)
+# Faster FAISS loading (Precompute embeddings)
 if os.path.exists(faiss_index_path):
     index = faiss.read_index(faiss_index_path)
 else:
@@ -37,11 +37,11 @@ else:
     index.add(embeddings)
     faiss.write_index(index, faiss_index_path)
 
-#  Load trained XGBoost model & Label Encoder
+# Load trained XGBoost model & Label Encoder
 disease_model = joblib.load(os.path.join(model_path, "xgboost_disease_model.pkl"))
 label_encoder = joblib.load(os.path.join(model_path, "label_encoder.pkl"))
 
-#  Predefined Symptom List
+# Predefined Symptom List
 SYMPTOM_LIST = [
     "fever", "cough", "fatigue", "sore throat", "runny nose", "headache",
     "chest pain", "difficulty breathing", "nausea", "vomiting", "diarrhea",
@@ -54,13 +54,42 @@ def extract_symptoms(user_input):
     detected = [symptom for symptom in SYMPTOM_LIST if re.search(rf"\b{symptom}\b", user_input.lower())]
     return detected
 
-def medical_chatbot():
-    """ Interactive AI Medical Chatbot with User Profile-Based Diagnosis"""
+def generate_faiss_query(disease, symptoms):
+    """ Generate diverse question-based embeddings for better FAISS matching """
+    treatment_queries = [
+        f"How should {disease} be treated?",
+        f"What medications are available for {disease}?",
+        f"What are the common treatments for {disease}?",
+        f"My symptoms include {', '.join(symptoms)}. What is the best treatment for {disease}?"
+    ]
 
-    while True:  # 🔄 Keep running chatbot until user exits
+    # Average embeddings from multiple query styles for robustness
+    query_embeddings = embedding_model.encode(treatment_queries)
+    query_embedding = np.mean(query_embeddings, axis=0).reshape(1, -1)
+
+    return query_embedding
+
+def retrieve_answer(query_embedding):
+    """ Search FAISS for the best answer """
+    _, top_match = index.search(query_embedding, 1)
+    if top_match[0][0] == -1:
+        return None
+    return answers[top_match[0][0]]
+
+def medical_chatbot():
+    """ Interactive AI Medical Chatbot with User Profile-Based Diagnosis """
+
+    while True:
         print("\n🤖 Chatbot: Hi there! I'm your medical assistant. Let's start by understanding your health profile.")
 
-        # 🔹 Step 1: Collect User Profile
+        # Step 1: Collect User Profile
+        user_name = ""
+        while not user_name.strip():
+            user_name = input("👤 You: What’s your name? ").strip().capitalize()
+            if not user_name:
+                print("🤖 Chatbot: Please provide a valid name.")
+
+        print(f"\n🤖 Chatbot: Nice to meet you, {user_name}! Let's start by understanding your health profile.")
         while True:
             user_age = input("👤 You: How old are you? ").strip()
             if user_age.isdigit():
@@ -80,13 +109,19 @@ def medical_chatbot():
 
         detected_symptoms = []
 
-        # 🔹 Step 2: Collect Symptoms
+        # Step 2: Collect Symptoms
         while True:
             user_input = input("👤 You: ").strip().lower()
 
             if user_input in ["exit", "quit", "stop", "bye"]:
                 print("👋 Chatbot: Take care! Stay healthy. Exiting now.")
                 return
+
+            if user_input in ["no", "nothing else", "that's all"]:
+                if not detected_symptoms:
+                    print("\n🤖 Chatbot: I couldn't detect specific symptoms. Try describing them differently?")
+                    return
+                break
 
             new_symptoms = extract_symptoms(user_input)
 
@@ -96,16 +131,9 @@ def medical_chatbot():
             else:
                 print("🤖 Chatbot: Could you describe your symptoms in more detail?")
 
-            if user_input in ["no", "nothing else", "that's all"]:
-                break
-
-        if not detected_symptoms:
-            print("\n🤖 Chatbot: I couldn't detect specific symptoms. Maybe try describing them differently?")
-            return
-
+        # ✅ Analyze Symptoms After User Stops Input
         print("\n🤖 Chatbot: Alright, let me analyze your symptoms...")
 
-        #  Convert symptoms into DataFrame
         feature_names = disease_model.get_booster().feature_names
         user_data = np.zeros(len(feature_names))
 
@@ -115,49 +143,32 @@ def medical_chatbot():
 
         input_df = pd.DataFrame([user_data], columns=feature_names)
 
-        #  Predict Disease (Multi-Disease Probability Mode)
         prediction_proba = disease_model.predict_proba(input_df)[0]
-        top_indices = np.argsort(prediction_proba)[::-1][:3]  # ✅ Top 3 possible diseases
+        top_indices = np.argsort(prediction_proba)[::-1][:3]
+
+        print("\n🩺 Chatbot: Based on your symptoms and health profile, here are the most likely conditions:")
+        for rank, idx in enumerate(top_indices, start=1):
+            disease_name = label_encoder.inverse_transform([idx])[0]
+            confidence = prediction_proba[idx] * 100
+            print(f"  {rank}. {disease_name} - {confidence:.2f}% confidence")
+
+        # 🔄 Improved FAISS retrieval
         top_disease = label_encoder.inverse_transform([top_indices[0]])[0]
-        top_confidence = prediction_proba[top_indices[0]] * 100
+        query_embedding = generate_faiss_query(top_disease, detected_symptoms)
+        treatment = retrieve_answer(query_embedding) or "🤖 No specific treatment found. Please consult a doctor."
 
-        # ❌ If confidence is too low, don't give a diagnosis
-        if top_confidence < 40:
-            print("\n⚠ Chatbot: I'm sorry, but I couldn't confidently determine a disease based on your symptoms.")
-            print("🤖 Chatbot: I recommend consulting a doctor for a professional evaluation.")
-            print("📌 General Advice: Stay hydrated, rest well, and monitor your symptoms.")
-        else:
-            print("\n🩺 Chatbot: Based on your symptoms and health profile, here are the most likely conditions:")
+        query_embedding = generate_faiss_query(top_disease, detected_symptoms)
+        precautions = retrieve_answer(query_embedding) or "🤖 No specific precautions found. Please consult a doctor."
 
-            for rank, idx in enumerate(top_indices, start=1):
-                disease_name = label_encoder.inverse_transform([idx])[0]
-                confidence = prediction_proba[idx] * 100
-                print(f"  {rank}. {disease_name} - {confidence:.2f}% confidence")
+        print("\n📌 Treatment Advice:", treatment)
+        print("⚠ Precautions You Should Take:", precautions)
 
-            # 🏥 Find treatment using FAISS
-            query_embedding = embedding_model.encode([f"What is the treatment for {top_disease}?"])
-            _, top_match = index.search(query_embedding, 1)
-            treatment = answers[top_match[0][0]]
+        print(f"\n🩺 *Final Diagnosis:* Based on my analysis, you are most likely suffering from *{top_disease}*.")
 
-            query_embedding = embedding_model.encode([f"What precautions should I take for {top_disease}?"])
-            _, top_match = index.search(query_embedding, 1)
-            precautions = answers[top_match[0][0]]
+        # Step 3: Restart or Exit
+        if input("\n🤖 Chatbot: Would you like to start a new session? (Yes/No) ").strip().lower() != 'yes':
+            print("\n👋 Chatbot: Thank you for using the medical assistant. Stay healthy! Exiting now.")
+            break
 
-            print("\n📌 Treatment Advice:", treatment)
-            print("⚠ Precautions You Should Take:", precautions)
 
-            # 🔥 *Final Diagnosis Statement*
-            print(f"\n🩺 *Final Diagnosis:* Based on my analysis, you are most likely suffering from *{top_disease}*.")
-            print("🤖 Chatbot: If symptoms persist, please consult a doctor for a professional diagnosis.")
 
-        #  Ask User If They Want to Continue
-        while True:
-            continue_session = input("\n🤖 Chatbot: Would you like to start a new session? (Yes/No) ").strip().lower()
-            if continue_session in ["yes", "y"]:
-                print("\n🔄 Restarting new diagnosis session...\n")
-                break
-            elif continue_session in ["no", "n"]:
-                print("\n👋 Chatbot: Thank you for using the medical assistant. Stay healthy! Exiting now.")
-                return
-            else:
-                print("🤖 Chatbot: Please enter 'Yes' to restart or 'No' to exit.")
