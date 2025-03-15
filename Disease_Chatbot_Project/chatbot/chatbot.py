@@ -84,7 +84,7 @@ if breathing_difficulty == "Yes":
 user_data = {
     "Age": int(age),
     "Gender_Male": 1 if gender == "Male" else 0,
-    "Gender_Female": 1 if gender == "Female" else 0,  # ✅ Fix: Ensure "Gender_Female" exists
+    "Gender_Female": 1 if gender == "Female" else 0,  # ✅ Ensure "Gender_Female" exists
     "Blood Pressure_Low": 1 if blood_pressure == "Low" else 0,
     "Blood Pressure_Normal": 1 if blood_pressure == "Normal" else 0,
     "Blood Pressure_High": 1 if blood_pressure == "High" else 0,
@@ -108,15 +108,20 @@ for col in model_features:
 # ✅ Reorder columns to match the model
 user_input = user_input[model_features]
 
-# ✅ Predict disease
+# ✅ Predict disease (Most Accurate)
 predicted_probs = model.predict_proba(user_input)[0]  # Get probability scores
 max_index = np.argmax(predicted_probs)  # Get the highest probability disease
 predicted_disease = disease_mapping.get(max_index, "Unknown Disease")
-confidence = predicted_probs[max_index] * 100  # Confidence score
+confidence = predicted_probs[max_index] * 100  # Use model's real confidence score
 
 # 🎉 Display Results
 print("\n🩺 Diagnosis Results:")
 print(f"🔍 Predicted Disease: {predicted_disease}")
-#print(f"📊 Confidence Score: {confidence:.2f}%")
+print(f"📊 Confidence Score: {confidence:.2f}%")
+
+if confidence < 50:
+    print("\n⚠ This prediction has low confidence. Please consult a doctor for an accurate diagnosis.")
+elif confidence < 75:
+    print("\n📝 This is an AI-based assessment. It is recommended to verify with a medical professional.")
 
 print(f"\n🤖 {name}, thank you for using the AI Medical Assistant! Stay healthy! 😊")
