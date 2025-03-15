@@ -117,6 +117,6 @@ confidence = predicted_probs[max_index] * 100  # Confidence score
 # 🎉 Display Results
 print("\n🩺 Diagnosis Results:")
 print(f"🔍 Predicted Disease: {predicted_disease}")
-print(f"📊 Confidence Score: {confidence:.2f}%")
+#print(f"📊 Confidence Score: {confidence:.2f}%")
 
 print(f"\n🤖 {name}, thank you for using the AI Medical Assistant! Stay healthy! 😊")
