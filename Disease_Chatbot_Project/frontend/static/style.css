@@ -1,0 +1,122 @@
+/* General Styles */
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #eef5f9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+/* Chat Container */
+.chat-container {
+    width: 90%;
+    max-width: 420px;
+    background-color: #fff;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+    border-radius: 15px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+header {
+    text-align: center;
+    background-color: #007bff;
+    color: white;
+    padding: 15px;
+    font-size: 1.2em;
+}
+
+/* Chat Box */
+.chat-box {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Messages */
+.bot-message, .user-message {
+    padding: 12px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    max-width: 75%;
+    font-size: 0.95em;
+    word-wrap: break-word;
+    display: flex;
+    align-items: center;
+}
+
+/* Bot Messages */
+.bot-message {
+    background-color: #007bff;
+    color: white;
+    align-self: flex-start;
+}
+
+.bot-icon {
+    font-size: 1.2em;
+    margin-right: 8px;
+}
+
+/* User Messages */
+.user-message {
+    background-color: #28a745;
+    color: white;
+    align-self: flex-end;
+}
+
+/* Input Area */
+.input-area {
+    display: flex;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #ddd;
+}
+
+input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 25px;
+    font-size: 16px;
+    outline: none;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 15px;
+    margin-left: 10px;
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 16px;
+    transition: background 0.3s ease-in-out;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Loading Animation */
+.loading-dots span {
+    animation: loading 1.5s infinite;
+    display: inline-block;
+    margin: 0 1px;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: 0s; }
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loading {
+    0% { opacity: 0.3; }
+    50% { opacity: 1; }
+    100% { opacity: 0.3; }
+}
